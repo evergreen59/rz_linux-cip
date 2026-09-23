@@ -1,0 +1,160 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Device Tree Source for the MYiR Remi Pi (RZ/G2L) board, SD card variant.
+ *
+ * MIPI-DSI is routed through a Lontium LT8912B bridge to HDMI.
+ *
+ * Migrated from the MYiR vendor Linux 5.10 BSP to the Renesas linux-cip
+ * 6.12 kernel.
+ *
+ * Copyright (C) 2022 MYiR Electronics Corp.
+ */
+
+/dts-v1/;
+#include "mys-rzg2l-smarc-base.dtsi"
+
+/ {
+	model = "MYiR Remi Pi (RZ/G2L) with SD card";
+	compatible = "myir,remi-pi-sdcard", "myir,remi-pi",
+		     "renesas,r9a07g044l2", "renesas,r9a07g044";
+
+	hdmi-out {
+		compatible = "hdmi-connector";
+		type = "d";
+		/*
+		 * The monitor's HPD is wired to this SoC GPIO, not to the LT8912B's own
+		 * HPD input (the chip's reg 0xC1 always reads 0). Without it the
+		 * connector detection fails and no mode is ever set.
+		 */
+		hpd-gpios = <&pinctrl RZG2L_GPIO(16, 1) GPIO_ACTIVE_HIGH>;
+
+		/*
+		 * The monitor's DDC/EDID lines are routed to RIIC1 on this board (the
+		 * monitor's EDID is readable at i2c-1 address 0x50), NOT to i2c0 as the
+		 * vendor DTS claims -- vendor never used the property, its EDID code is
+		 * commented out and it forces a fixed 1080p mode instead.
+		 * Named after the connector so drm_edid_read_ddc() can use it.
+		 */
+		ddc-i2c-bus = <&i2c1>;
+
+		port {
+			hdmi_con_out: endpoint {
+				remote-endpoint = <&lt8912_out>;
+			};
+		};
+	};
+};
+
+&pinctrl {
+	sdhi1_pins: sd1 {
+		sd1_data {
+			pins = "SD1_DATA0", "SD1_DATA1", "SD1_DATA2", "SD1_DATA3";
+			power-source = <3300>;
+		};
+
+		sd1_ctrl {
+			pins = "SD1_CLK", "SD1_CMD";
+			power-source = <3300>;
+		};
+
+		sd1_mux {
+			pinmux = <RZG2L_PORT_PINMUX(19, 0, 1)>; /* SD1_CD */
+		};
+	};
+
+	sdhi1_pins_uhs: sd1_uhs {
+		sd1_data_uhs {
+			pins = "SD1_DATA0", "SD1_DATA1", "SD1_DATA2", "SD1_DATA3";
+			power-source = <3300>;
+		};
+
+		sd1_ctrl_uhs {
+			pins = "SD1_CLK", "SD1_CMD";
+			power-source = <3300>;
+		};
+
+		sd1_mux_uhs {
+			pinmux = <RZG2L_PORT_PINMUX(19, 0, 1)>; /* SD1_CD */
+		};
+	};
+};
+
+&du {
+	status = "okay";
+};
+
+/* MIPI DSI -> LT8912B -> HDMI */
+&dsi {
+	status = "okay";
+
+	ports {
+		port@1 {
+			dsi0_out: endpoint {
+				data-lanes = <1 2 3 4>;
+				remote-endpoint = <&lt8912_in>;
+			};
+		};
+	};
+};
+
+&i2c0 {
+	/* MIPI-DSI to HDMI bridge */
+	hdmi@48 {
+		compatible = "lontium,lt8912b";
+		reg = <0x48>;
+		/*
+		 * The LT8912B RESET pin is active low on this board: driving it low
+		 * holds the chip in reset (all I2C reads then fail). The vendor driver
+		 * uses raw direction/value calls, hence GPIO_ACTIVE_HIGH there; the
+		 * mainline driver uses gpiod logical levels, so the flag must be
+		 * GPIO_ACTIVE_LOW to drive the pin high when releasing reset.
+		 */
+		reset-gpios = <&pinctrl RZG2L_GPIO(42, 2) GPIO_ACTIVE_LOW>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				lt8912_in: endpoint {
+					data-lanes = <1 2 3 4>;
+					remote-endpoint = <&dsi0_out>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+				lt8912_out: endpoint {
+					remote-endpoint = <&hdmi_con_out>;
+				};
+			};
+		};
+	};
+
+	ft5x06: touchscreen@38 {
+		compatible = "edt,edt-ft5406";
+		reg = <0x38>;
+		status = "disabled"; /* EDT FT5x06 is not populated on this board. */
+		interrupt-parent = <&pinctrl>;
+		interrupts = <RZG2L_GPIO(48, 2) IRQ_TYPE_EDGE_FALLING>;
+		reset-gpios = <&pinctrl RZG2L_GPIO(42, 3) GPIO_ACTIVE_LOW>;
+		touchscreen-size-x = <1024>;
+		touchscreen-size-y = <600>;
+	};
+};
+
+/*
+ * microSD card on SDHI1. Card detect uses the SoC native SD1_CD pin
+ * (muxed above), so no cd-gpios is needed.
+ */
+&sdhi1 {
+	pinctrl-0 = <&sdhi1_pins>;
+	pinctrl-1 = <&sdhi1_pins_uhs>;
+	pinctrl-names = "default", "state_uhs";
+	vmmc-supply = <&reg_3p3v>;
+	vqmmc-supply = <&reg_3p3v>;
+	bus-width = <4>;
+	disable-wp;
+	status = "okay";
+};

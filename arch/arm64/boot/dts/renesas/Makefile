@@ -131,6 +131,14 @@ dtb-$(CONFIG_ARCH_R9A07G044) += r9a07g044l2-smarc-cru-csi-ov5645.dtbo
 r9a07g044l2-smarc-cru-csi-ov5645-dtbs := r9a07g044l2-smarc.dtb r9a07g044l2-smarc-cru-csi-ov5645.dtbo
 dtb-$(CONFIG_ARCH_R9A07G044) += r9a07g044l2-smarc-cru-csi-ov5645.dtb
 
+dtb-$(CONFIG_ARCH_R9A07G044) += mys-rzg2l-wifi.dtb
+dtb-$(CONFIG_ARCH_R9A07G044) += mys-rzg2l-sdcard.dtb
+
+# Keep the optional SPI TFT overlay out of the default DTB list.  The base
+# DTBs still need symbols so the overlay can be applied at boot/runtime.
+DTC_FLAGS_mys-rzg2l-wifi := -@
+DTC_FLAGS_mys-rzg2l-sdcard := -@
+
 dtb-$(CONFIG_ARCH_R9A07G054) += r9a07g054l2-smarc.dtb
 dtb-$(CONFIG_ARCH_R9A07G054) += r9a07g054l2-smarc-cru-csi-ov5645.dtbo
 r9a07g054l2-smarc-cru-csi-ov5645-dtbs := r9a07g054l2-smarc.dtb r9a07g054l2-smarc-cru-csi-ov5645.dtbo

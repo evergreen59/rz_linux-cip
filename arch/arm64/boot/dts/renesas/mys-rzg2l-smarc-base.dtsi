@@ -123,16 +123,6 @@
 		regulator-always-on;
 	};
 
-	bt_reg_on: regulator-bt_reg_on {
-		compatible = "regulator-fixed";
-		regulator-name = "bt_reg_on";
-		regulator-min-microvolt = <3300000>;
-		regulator-max-microvolt = <3300000>;
-		gpios = <&pinctrl RZG2L_GPIO(8, 0) GPIO_ACTIVE_HIGH>;
-		enable-active-high;
-		regulator-boot-on;
-		regulator-always-on;
-	};
 
 	leds {
 		compatible = "gpio-leds";
@@ -637,14 +627,19 @@
 
 	/*
 	 * RTL8822CS combo module: Bluetooth is on SCIF1 and uses the 3-wire (H5)
-	 * protocol. There is no BT_EN/reset GPIO on this board (the module is
-	 * enabled together with its WiFi half), so no GPIO properties are needed.
+	 * protocol.  The module has its own BT_REG_ON input (U22 pin 38), wired
+	 * to P8_0, which the H5 driver must toggle to reset the BT core: it
+	 * drives 'enable' low for 100 ms and then releases it before starting the
+	 * H5 link setup.  Without it a warm reboot leaves the chip running in
+	 * whatever state the previous kernel left it in, and it never answers the
+	 * H5 link-control sync request.
 	 * This serdev binding makes hci_uart probe automatically; it additionally
 	 * needs rtl_bt/rtl8822cs_fw.bin and rtl_bt/rtl8822cs_config.bin present in
 	 * the rootfs firmware directory.
 	 */
 	bluetooth {
 		compatible = "realtek,rtl8822cs-bt";
+		enable-gpios = <&pinctrl RZG2L_GPIO(8, 0) GPIO_ACTIVE_HIGH>;
 	};
 };
 
